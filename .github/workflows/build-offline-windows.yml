@@ -1,0 +1,53 @@
+name: Build offline Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build fully offline installer
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: keyword-scanner/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build the complete offline installer
+        shell: pwsh
+        working-directory: keyword-scanner
+        run: ./scripts/build-windows.ps1
+
+      - name: Verify installer exists
+        shell: pwsh
+        working-directory: keyword-scanner
+        run: |
+          $installer = Get-ChildItem -Path release -Filter "*.exe" -File
+          if ($installer.Count -eq 0) { throw "Windows installer was not produced." }
+          $installer | Format-Table Name, Length
+
+      - name: Upload offline installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyword-scanner-offline-windows-installer
+          path: keyword-scanner/release/*.exe
+          if-no-files-found: error
+          retention-days: 30
